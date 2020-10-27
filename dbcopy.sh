@@ -95,12 +95,12 @@ echo `date +"$dfmt"`"`wc -l <$ctsql` tables created" |tee -a $body
 cat $sclist |grep "CREATE TABLE\|PARTITIONED"|cut -d "|" -f2|sed -e 's/^ *//g' -e 's/ *$//g'|sed -E ':a ; $!N ; s/\n\PARTITIONED/PARTITIONED/ ; ta ; P ; D'>$ptnlist
 grep "PARTITIONED" $ptnlist |cut -d "." -f2|cut -d "(" -f1|sed -e 's/^/alter table /g' -e 's/$/ recover partitions;/g'|awk -F " " '{print $0" compute stats "$3";"}'>$rpsql
 grep -v "PARTITIONED" $ptnlist |cut -d "." -f2|cut -d "(" -f1|sed -e 's/^/refresh /g' -e 's/$/;/g'|awk -F " " '{print $0" compute stats "$2";"}'>$refreshsql
-echo `date +"$dfmt"`"refresh table" |tee -a $body
-./run_db_file_parallel.sh ${target_db} $refreshsql 
-echo `date +"$dfmt"`"`wc -l <$refreshsql` tables refreshed" |tee -a $body
 echo `date +"$dfmt"`"recover partitions" |tee -a $body
 ./run_db_file_parallel.sh ${target_db} $rpsql 
 echo `date +"$dfmt"`"`wc -l <$rpsql` table partitions recovered" |tee -a $body
+echo `date +"$dfmt"`"refresh table" |tee -a $body
+./run_db_file_parallel.sh ${target_db} $refreshsql 
+echo `date +"$dfmt"`"`wc -l <$refreshsql` tables refreshed" |tee -a $body
 echo `date +"$dfmt"`"complete ${0} ${source_db} ${target_db}" |tee -a $body
 if [ "$sendto" != "" ]
 then

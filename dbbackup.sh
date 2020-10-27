@@ -1,6 +1,7 @@
 #!/bin/bash
 #20200831:	paralle hdfs copy and target table creation to speed up backup
 #20200922:      add parameter to control nunber replications the target will have
+#20201027:	optimize the drop table step in target database to reduce overhead of interacting with metastore
 #set -x 
 cd `dirname $0`
 logfile=./log/`basename ${0} .sh`.log
@@ -107,13 +108,17 @@ echo `date +"$dfmt"`"show create table" |tee -a $body
 ./run_db_file.sh $source_db $tblsql>$sclist
 cat $sclist|grep "CREATE TABLE"|cut -d "(" -f1 |cut -d "." -f2 |sed -e "s/ *$//g">$tbllist
 echo `date +"$dfmt"`"`wc -l <$tbllist` tables excluding views" |tee -a $body
-awk -v sdb=$source_db -v ymd=$ymd '{print "drop table if exists " sdb "_" $0 "_" ymd " purge;"}' $tbllist >$dtsql
+
+comm -12 <(sort $tbllist|sed -e "s/^/${source_db}_/g" -e "s/$/_${ymd}/g") <(./run_db_sqlb.sh $target_db "show tables like '${source_db}_*_${ymd}'"|sort) >$dtsql
+#awk -v sdb=$source_db -v ymd=$ymd '{print "drop table if exists " sdb "_" $0 "_" ymd " purge;"}' $tbllist >$dtsql
 awk -v sdb=$source_db -v ymd=$ymd '{print "create table " sdb "_" $0 "_" ymd " like " sdb "."$0";"}' $tbllist >$ctsql
 grep hdfs $sclist | cut -d "'" -f2 |awk -v tgt=${target_uri} -v sdb=${source_db} -v ymd=${ymd} -F '/' '{print "hdfs dfs -mkdir -p " tgt "/" sdb "_" $NF "_" ymd}' >$mkdirsh
-grep hdfs $sclist | cut -d "'" -f2 |awk -v tgt=${target_uri} -v sdb=${source_db} -v ymd=${ymd} -F '/' '{print "hdfs dfs -D dfs.replication=2 -cp -f " $0 "/* " tgt "/" sdb "_" $NF "_" ymd}' >$hdfscopysh
+grep hdfs $sclist | cut -d "'" -f2 |awk -v tgt=${target_uri} -v sdb=${source_db} -v ymd=${ymd} -v repl=${replication} -F '/' '{print "hdfs dfs -D dfs.replication="repl" -cp -f " $0 "/* " tgt "/" sdb "_" $NF "_" ymd}' >$hdfscopysh
 
 echo `date +"$dfmt"`"drop table" |tee -a $body
-./run_db_file_parallel.sh ${target_db} $dtsql
+#./run_db_file_parallel.sh ${target_db} $dtsql
+./run_db_tbls_sql_parallel.sh ${target_db} $dtsql "drop table if exists"
+echo `date +"$dfmt"`"`wc -l <$dtsql` tables dropped" |tee -a $body
 sleep 5
 echo `date +"$dfmt"`"create table" |tee -a $body
 

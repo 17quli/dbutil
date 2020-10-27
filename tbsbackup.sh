@@ -10,9 +10,10 @@ exec 2>&1
 source_db=$1
 target_db=$2
 tbllist=$3
+ts=`date +%Y%m%d%H%M%S%N`
+tgttbllist=./stg/tgttbllist_${target_db}_${ts}.lst
 conffile=./conf/`basename ${0} .sh`.conf
 ymd=`date +%Y%m%d`
-ts=`date +%Y%m%d%H%M%S%N`
 m5list=./stg/m5_${ts}.lst
 sclist=./stg/showcreate_${ts}.lst
 ptnlist=./stg/partition_${ts}.lst
@@ -110,6 +111,7 @@ echo `date +"$dfmt"`"show create table" |tee -a $body
 
 
 awk -v sdb=$source_db -v ymd=$ymd '{print "drop table if exists " sdb "_" $0 "_" ymd " purge;"}' $tbllist >$dtsql
+awk -v sdb=$source_db -v tdb=$target_db -v ymd=$ymd '{print tdb "." sdb "_" $0 "_" ymd}' $tbllist >$tgttbllist
 awk -v sdb=$source_db -v ymd=$ymd '{print "create table " sdb "_" $0 "_" ymd " like " sdb "."$0";"}' $tbllist >$ctsql
 grep hdfs $sclist | cut -d "'" -f2 |awk -v tgt=${target_uri} -v sdb=${source_db} -v ymd=${ymd} -F '/' '{print "hdfs dfs -D dfs.replication=2 -cp -f " $0 "/* " tgt "/" sdb "_" $NF "_" ymd}' >$hdfscopysh
 grep hdfs $sclist | cut -d "'" -f2 |awk -v tgt=${target_uri} -v sdb=${source_db} -v ymd=${ymd} -F '/' '{print "hdfs dfs -mkdir -p " tgt "/" sdb "_" $NF "_" ymd}' >$mkdirsh
@@ -145,6 +147,8 @@ echo `date +"$dfmt"`"`wc -l <$refreshsql` tables refreshed" |tee -a $body
 echo `date +"$dfmt"`"recover partitions" |tee -a $body
 ./run_db_file_parallel.sh ${target_db} $rpsql 
 echo `date +"$dfmt"`"`wc -l <$rpsql` table partitions recovered" |tee -a $body
+
+./tbsvalidation.sh $tgttbllist |tee -a $body
 
 echo `date +"$dfmt"`"show tables backup expired" |tee -a $body
 ./run_db_sqlb.sh $target_db "show tables "|grep "^${source_db}_"|grep "_${ymdm5}$" >$m5list

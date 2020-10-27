@@ -17,4 +17,4 @@ then
 fi
 
 
-impala-shell -c -B --quiet -i ird10139au.vsp.sas.com:25003  -f ${sql_file} -d ${db_name}  -k --ssl --ca_cert=/sso/hadoop/cloudera-certs/CACerts/sas-hadoop-truststore.pem  2>&1 |tee -a $logfile
+impala-shell -c -B --quiet -i ird10139au.vsp.sas.com:25003  -f ${sql_file} -d ${db_name}  -k --ssl --ca_cert=/sso/hadoop/cloudera-certs/CACerts/sas-hadoop-truststore.pem  2>>$logfile 

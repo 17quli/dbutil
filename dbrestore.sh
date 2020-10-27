@@ -11,6 +11,7 @@ suffix="$4"
 conffile=./conf/`basename ${0} .sh`.conf
 ts=`date +%Y%m%d%H%M%S`
 tbllist=./stg/tbl_${ts}.lst
+tgttbllist=./stg/tgttbl_${ts}.lst
 sclist=./stg/showcreate_${ts}.lst
 ptnlist=./stg/partition_${ts}.lst
 tblsql=./stg/tbl_${ts}.sql
@@ -86,6 +87,7 @@ cat $sclist|grep "CREATE TABLE"|cut -d "(" -f1 |cut -d "." -f2 |sed -e 's/ *$//g
 echo `date +"$dfmt"`"`wc -l <$tbllist` tables to be restored" |tee -a $body
 
 sed -e "s/^$prefix/drop table if exists /g" -e "s/$suffix$/;/g" $tbllist >$dtsql
+sed -e "s/^$prefix//g" -e "s/$suffix$//g" $tbllist >$tgttbllist
 
 awk -v sdb=$source_db -v p="$prefix" -v s="$suffix" '{a=substr($0,length(p)+1); b=substr(a,1,length(a)-length(s));print "create table " b " like " sdb "." $0 ";"}'  $tbllist >$ctsql
 
@@ -118,6 +120,7 @@ echo `date +"$dfmt"`"`wc -l <$refreshsql` tables refreshed" |tee -a $body
 echo `date +"$dfmt"`"recover partitions" |tee -a $body
 ./run_db_file_parallel.sh ${target_db} $rpsql 
 echo `date +"$dfmt"`"`wc -l <$rpsql` table partitions recovered" |tee -a $body
+./tbsvalidation.sh ${target_db} $tgttbllist
 echo `date +"$dfmt"`"complete ${0} ${source_db} ${target_db}" |tee -a $body
 if [ "$sendto" != "" ]
 then
